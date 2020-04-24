@@ -1,0 +1,28 @@
+ldap:
+  authbind: false
+  dn:
+  - uid=%%s,ou=People,dc=extensive,dc=local
+  host:
+  - ldap://127.0.0.1:389
+log:
+  level: DEBUG
+  max-backup: 20
+  max-size: 5M
+name: Automate Actions
+network:
+  api-bind-ip: 0.0.0.0
+  api-bind-port: 8081
+  api-ip-version: 4
+paths:
+  jobs-backups: /data/jobs/
+  jobs-executions: /data/executions/
+  python-linux: python
+  python-windows: py
+  server-logs: /data/logs/
+  workspaces: /data/workspaces/
+security:
+  salt: f560229d50ae4f5ef2ea16aa2cc4ab04907c7274
+session:
+  max-expiry-age: 86400
+  timeout-cleanup: 3600
+version: 1.0.0

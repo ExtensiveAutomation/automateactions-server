@@ -1,0 +1,22 @@
+variables:
+  debug: false
+  timeout: 1
+  dest_host: www.google.com
+  dest_port: 443
+  dest_x: ${{globals.servers}}
+  dest_y: ${{cache.var}}
+snippets:
+  - step1:
+      description: run script c1
+      execute: code/action1.yml
+      with:
+        debug: ${{variables.debug}}
+  - step2:
+      description: run script c3
+      execute: code/action1.yml
+  - step3:
+      description: run script c2
+      execute: code/action1.yml
+      when:
+        step1: done
+        step2: done

@@ -1,0 +1,9 @@
+variables:
+  debug: bbbbb
+python: |
+  from ea.automateactions.joblibrary import job
+  from ea.automateactions.joblibrary import datastore
+
+  job.log("debug is %s" % datastore.variables("debug") )
+
+  #job.emit("success")

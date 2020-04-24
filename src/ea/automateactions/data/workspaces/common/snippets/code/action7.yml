@@ -1,0 +1,13 @@
+variables:
+  debug: aaaa
+python: |
+  from ea.automateactions.joblibrary import job
+  from ea.automateactions.joblibrary import datastore
+
+  job.log("debug is %s" % datastore.variables("debug") )
+
+  job.sleep(1)
+  job.log("save variable in cache")
+  datastore.save("a", "hello")
+
+  job.sleep(1)

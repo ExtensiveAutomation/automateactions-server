@@ -1,0 +1,13 @@
+variables:
+    debug: true
+snippets:
+    - a1:
+        description: execute action 1
+        execute: ./code/action1.yml
+        with:
+            debug: ${{globals.test}}
+    - a2:
+        description: execute action 2
+        execute: ./code/action2.yml
+        when:
+            a1: done

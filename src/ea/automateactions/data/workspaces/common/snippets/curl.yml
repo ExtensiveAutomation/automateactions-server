@@ -1,0 +1,228 @@
+variables:
+  # debug mode
+  debug: false
+  # headers to add in the request
+  # several headers can be provided at once
+  req_headers: null
+  # request body
+  # body string to add in the request
+  req_body: null
+  # proxy address 'http://proxy:8080'
+  proxy_host: null
+  # destination url 'https://hostname:443'
+  req_host: 'http://192.168.1.1'
+  # 'GET, POST, etc.'
+  # default is GET
+  req_method: null
+  # additional curl options
+  # can be useful to configure specifics behaviors
+  curl_options: null
+  # response json expected
+  # with json path support
+  rsp_body_json: null
+  # response raw content
+  rsp_body_raw: null
+  # 's:Body &lt;tab&gt; .*'
+  rsp_body_xml: null
+  # xml namespace
+  # "s\thttp://www.w3.org/2003/05/soap-envelope\nr\t
+  # http://www.holidaywebservice.com/HolidayService_v2/\n"
+  rsp_body_xml_ns: null
+  # http code expected
+  # default is 200
+  rsp_code:  200
+  # expected headers in response
+  # severals headers can be provided with regex support
+  #    [S|s]erver:.*
+  #    Location:.*
+  rsp_headers: null
+  # http reason phrase expected
+  # with regex support
+  rsp_reason_phrase: null
+  # http version expected with regex support
+  # default is version 1.0 or version 1.1
+  # 'HTTP/1.[1|0]'
+  rsp_version: null
+  # max time to connect on the remote side
+  # in seconds
+  timeout_connect: 3
+  # max time to receive response from remote
+  # in seconds
+  timeout: 10
+python: |
+    from ea.automateactions.plugins import web
+    
+    from ea.automateactions.joblibrary import job
+    from ea.automateactions.joblibrary import datastore
+    from ea.automateactions.joblibrary import operators
+    
+    import re
+    import json
+    import jsonpath_ng
+    import lxml
+    import uuid
+    
+    # init curl
+    curl = web.Curl(action=job, debug=datastore.variables("debug"))
+    
+    # send request
+    req_headers = None
+    body_req = datastore.variables('req_body')
+    conn_info, req_info, rsp_info = curl.sendHttp(host=datastore.variables('req_host'),
+                                                  method=datastore.variables('req_method'),
+                                                  headers=req_headers,body=body_req,
+                                                  proxy_host=datastore.variables('proxy_host'),
+                                                  timeout_connect=datastore.variables('timeout_connect'),
+                                                  timeout_max = datastore.variables('timeout'),
+                                                  more=datastore.variables('curl_options'))
+
+    # check the http code of the response
+    code_exp = datastore.variables('rsp_code')
+    code_rcv = rsp_info["code"]
+    if code_exp is not None:
+        if not operators.RegEx(needle=code_exp).seekIn(haystack=code_rcv):
+            job.failure("* checking http code: KO (%s received, %s expected)" % (code_rcv, code_exp) )
+        job.log("* checking http code (%s): OK" % code_exp) 
+      
+    # check the http reason phrase of the response
+    phrase_exp = datastore.variables('rsp_reason_phrase')
+    phrase_rcv = rsp_info["phrase"]
+    if phrase_exp is not None:
+        if not operators.RegEx(needle=phrase_exp).seekIn(haystack=phrase_rcv):
+            job.failure("* checking http reason phrase: KO (%s expected, %s received)" % (phrase_exp, phrase_rcv))
+        job.log( "* checking http reason phrase (%s): OK" %  phrase_exp)
+      
+    # check the http version
+    version_exp = datastore.variables('rsp_version')
+    version_rcv = rsp_info["version"]
+    if version_exp is not None:
+        if not operators.RegEx(needle=version_exp).seekIn(haystack=version_rcv):
+            job.failure("* checking http version: KO (%s expected, %s received)" % (version_exp, version_rcv))
+        job.log("* checking http version (%s): OK" % version_exp)
+
+    # check headers in response
+    headers_rcv = rsp_info["headers"]
+    if datastore.variables('rsp_headers') is not None:
+        for hv in datastore.variables('rsp_headers').splitlines():
+            # ignore commented or malformed header
+            if hv.startswith("#"): continue 
+            if ":" not in hv: continue
+          
+            hdr_founded = False
+            for hdr_rcv in headers_rcv:
+                if operators.RegEx(needle=hv).seekIn(haystack=hdr_rcv):
+                    hdr_founded = True
+                    job.log("* checking http header (%s): OK " % hv)
+                  
+                    # capture header value and save it in the cache
+                    datastore.capture(data=hdr_rcv, regexp=hv)
+            if not hdr_founded: 
+                job.failure( "* checking http header (%s): KO" % hv)
+
+    # checking body raw ?
+    body_rcv = rsp_info["body"]
+    if datastore.variables('rsp_body_raw') is not None:
+        body_exp = ".*".join(datastore.variables('rsp_body_raw').splitlines())
+        if not operators.RegEx(needle=".*%s.*" % body_exp).seekIn(haystack=body_rcv):
+            job.failure("> checking http body: KO (%s expected)" % (body_regexp))
+          
+        # capture header value and save it in the cache
+        datastore.capture(data=body_rcv, regexp=body_regexp)
+        
+        job.log("- checking http body: OK")
+
+    # checking body json ?
+    body_rcv = rsp_info["body"]
+    body_exp = datastore.variables('rsp_body_json')
+    if  body_exp is not None:
+        try:
+            body_json = json.loads(body_rcv)
+        except:
+            job.failure("* checking http body format: KO (json expected)")
+        job.log( "* checking http body format: OK (valid json)" )
+        
+        for line in body_exp.splitlines():
+            if line.startswith("#"): continue 
+            if len(re.split(r'\t+', line)) != 2: continue
+          
+            jpath, jvalue = re.split(r'\t+', line)
+            try:
+                json_values =  [match.value for match in parse(jpath).find(body_json)]
+            except Exception as e:
+                job.log('bad jsonpath (%s) provided ? more details:\n\n %s' % (jpath, str(e)) )
+                json_values = []
+            if not len(json_values):
+                job.failure( "* searching in json response '%s' with the value '%s' : KO" % (jpath, jvalue) )
+        
+            #  search capture regexp
+            capture_detected = re.findall("\(\?P\<.*\>.*\)", jvalue)
+            if capture_detected:
+                cache_key = jvalue.split("(?P<")[1].split(">.*)")[0]
+                if len(json_values) == 1:
+                    datastore.capture(data="%s" % json_values[0], regexp=jvalue)
+                else:
+                    datastore.set(name=cache_key, data=json_values)
+                job.log( "* searching in json response and capture value of '%s'" % (jpath) )
+            else:
+                values_detected = False
+                for jv in json_values:
+                    if operators.RegEx(needle=jvalue).seekIn(haystack="%s" % jv):
+                        values_detected = True
+                if not values_detected:
+                    job.failure( "* searching in json response '%s' with the value '%s' : KO" % (jpath, jvalue) )
+                job.log( "* searching in json response '%s' with the value '%s' : OK" % (jpath, jvalue)  ) 
+
+    # checking body xml ?
+    body_rcv = rsp_info["body"]
+    body_exp = datastore.variables('rsp_body_xml')
+    if body_exp is not None:
+        try:
+            etree.XML( bytes(body_xml, "utf8") )
+        except Exception as e:
+            job.failure("* checking http body format: KO (xml expected)")
+        job.log( "* checking http body format: OK (valid xml)"  )
+        
+        ns = {}
+        if datastore.variables('rsp_body_xml_ns') is not None:
+            for line in datastore.variables('rsp_body_xml_ns').splitlines():
+                if len(re.split(r'\t+', line)) != 2: continue
+                ns_name, namespace = re.split(r'\t+', line)
+                ns[ns_name] = namespace
+              
+        for line in body_exp.splitlines():        
+            if line.startswith("#"): continue 
+            if len(re.split(r'\t+', line)) != 2: continue
+          
+            xpath, xvalue = re.split(r'\t+', line)
+            # search data with xpath in xml
+            xml_values = []
+            try:
+                rootXML = etree.XML( bytes(body_xml, "utf8") )
+                findXML= etree.XPath(xpath, namespaces=ns)
+                retXML =  findXML(rootXML)
+                
+                for el in retXML:
+                    if isinstance(el, etree._Element ):
+                        xml_values.append( "%s" % el.text)
+                    else:
+                        xml_values.append( "%s" % el )
+            except Exception as e:
+                job.failure( "* searching '%s' with the value '%s' : KO" % (xpath, xvalue) )
+              
+            #  search capture regexp
+            capture_detected = re.findall("\(\?P\<.*\>.*\)", xvalue)
+            if capture_detected:
+                cache_key = xvalue.split("(?P<")[1].split(">.*)")[0]
+                if len(xml_values) == 1:
+                    datastore.capture(data="%s" % xml_values[0], regexp=xvalue)
+                else:
+                    datastore.set(name=cache_key, data=xml_values)
+                job.log( "* searching and capture value of '%s'" % (xpath) )
+            else:
+                values_detected = False
+                for jv in xml_values:
+                    if operators.RegEx(needle=xvalue).seekIn(haystack="%s" % jv):
+                      values_detected = True
+                if not values_detected:
+                    job.failure( "- searching '%s' with the value '%s' : KO" % (xpath, xvalue) )
+                job.log( "- searching '%s' with the value '%s' : OK" % (xpath, xvalue) )

@@ -1,0 +1,29 @@
+variables:
+    debug: false
+snippets:
+    - a1:
+        description: execute action 1
+        execute: ./code/action1.yml
+    - a2:
+        description: execute action 2
+        execute: ./code/action2.yml
+        when: 
+            a5: done
+    - a3:
+        description: execute action 3
+        execute: ./code/action3.yml
+        when:
+            a2: done
+    - a4:
+        description: execute action 4
+        execute: ./code/action4.yml
+        when:
+            a1: done
+            a6: done
+            a3: done
+    - a5:
+        description: execute action 5
+        execute: ./code/action5.yml
+    - a6:
+        description: execute action 6
+        execute: ./code/action5.yml

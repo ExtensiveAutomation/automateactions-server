@@ -1,0 +1,31 @@
+variables:
+    debug: false
+    timeout: 2.0
+    server1: ${{globals.servers}}
+    server2: aa ${{globals.x-host-a}} bb ${{globals.servers.a}}
+    server3: ${{cache.var1}}
+python: |
+    from ea.automateactions.joblibrary import job
+    from ea.automateactions.joblibrary import datastore
+    
+    # save value to the cache
+    datastore.save("var1", "hello")
+    
+    # get value from variable
+    p = datastore.variables("debug")
+    job.log( p )
+    
+    # get value from environment
+    e = datastore.globals("x-host-a")
+    job.log( e )
+    
+    # get value from cache 
+    c = datastore.cache("var1")
+    job.log( c )
+    
+    # subtitute 
+    job.log( datastore.variables("server1") )
+    
+    job.log( datastore.variables("server2") )
+    
+    job.log( datastore.variables("server3") )

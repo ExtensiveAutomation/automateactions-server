@@ -1,0 +1,17 @@
+variables:
+    debug: false
+snippets:
+    - s1:
+        description: http request to extensiveautomation
+        execute: curl.yml
+        with:
+            debug: ${{variables.debug}}
+            req_host: ${{globals.url}}
+            rsp_headers: |
+                Server: .*(CentOS).*
+    - s2:
+        description: http request to google
+        execute: curl.yml
+        with:
+            debug: ${{variables.debug}}
+            req_host: https://www.google.fr

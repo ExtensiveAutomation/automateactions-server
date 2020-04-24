@@ -1,0 +1,11 @@
+x-host-a: &host_a
+    host-url: www.google.org
+    host-port: 443
+servers:
+    b:
+        <<: *host_a
+    a:
+        host: toto.org
+url: https://www.extensiveautomation.org/
+debug: false
+test: aé
